@@ -107,10 +107,68 @@ uv run main.py archivo_base.csv archivo_nuevo.csv --key "TradeID,Version" --igno
 ### 3. Generar Datos de Prueba
 Para verificar el funcionamiento con scripts de prueba incluidos:
 ```bash
-# Generar datos grandes
-uv run generate_large_data.py
-
 # Generar datos específicos para pruebas de llave
 # (Creará tests/data/key_base.csv, key_shuffled.csv, etc.)
 uv run generate_key_data.py
 ```
+
+## Procesamiento Masivo (Batch)
+
+Módulo diseñado para comparar cientos de archivos (ej: Server A vs Server B) de forma automatizada, resiliente y estructurada.
+
+### 1. Arquitectura Batch
+- **Orquestador (`src/batch/orchestrator.py`)**: Script en Python que itera sobre los archivos, gestiona errores (sin detener el proceso) y genera reportes.
+- **Configuración (`batch_config.json`)**: Permite definir **llaves dinámicas** según el nombre del archivo.
+- **Log (`execution.log`)**: Bitácora detallada de cada paso.
+- **Reporte Maestro (`summary_report.xlsx`)**: Excel consolidado con el estado de todos los archivos.
+
+### 2. Ejecución Simplificada
+Use el script `run_batch.sh` para ejecutar el proceso completo. Edite las variables `DIR_A` y `DIR_B` dentro del script para apuntar a sus datos reales.
+
+```bash
+# Dar permisos de ejecución (solo la primera vez)
+chmod +x run_batch.sh
+
+# Ejecutar
+./run_batch.sh
+```
+
+### 3. Configuración Dinámica (`batch_config.json`)
+Este archivo define qué columnas usar como llave primaria (`--key`) automáticamente.
+
+Ejemplo:
+```json
+{
+    "default_keys": ["id"],
+    "rules": [
+        {
+            "pattern": "trade_report_",
+            "keys": ["TradeID"] 
+        },
+        {
+            "pattern": "cash_flow_",
+            "keys": ["Account", "Date"]
+        }
+    ]
+}
+```
+*   Si el archivo empieza con `trade_report_`, usa `TradeID`.
+*   Si no coincide con ninguna regla, usa `default_keys` (o lo definido en `--key` como fallback).
+
+### 4. Salida Generada
+Los resultados se guardan en `results/batch_YYYYMMDD_HHMMSS/`:
+
+*   **`summary_report.xlsx`**: Panel de control.
+    *   **Status**: `OK` (Idénticos), `DIFF` (Diferencias), `ERROR` (Fallo técnico), `MISSING_IN_B` (No existe en destino).
+    *   **Métricas**: Filas Totales, Registros Faltantes, Diferencias de Contenido.
+    *   **Detail Report**: Nombre del archivo Excel con el detalle (si aplica).
+*   **`execution.log`**: Trazabilidad técnica.
+*   **`details/`**: Carpeta que contiene **solo** los reportes Excel (`.xlsx`) de los archivos que presentaron diferencias.
+
+### 5. Generar Datos de Prueba Batch
+Para simular un entorno con 200 archivos (incluyendo casos de borde y llaves especiales):
+
+```bash
+uv run generate_batch_data.py
+```
+Esto creará `tests/batch_data/server_a` y `server_b` listos para probar con `./run_batch.sh`.
