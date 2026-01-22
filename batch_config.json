@@ -2,7 +2,18 @@
     "default_keys": [
         "id"
     ],
+    "default_ignore_columns": [],
     "rules": [
+        {
+            "pattern": "ignore_test_",
+            "keys": [
+                "id"
+            ],
+            "ignore_columns": [
+                "timestamp",
+                "created_at"
+            ]
+        },
         {
             "pattern": "trade_report_",
             "keys": [
@@ -26,6 +37,14 @@
             "pattern": "positions_",
             "keys": [
                 "instrument_id"
+            ]
+        },
+        {
+            "pattern": "composite_",
+            "keys": [
+                "portfolio",
+                "instrument",
+                "date"
             ]
         }
     ]

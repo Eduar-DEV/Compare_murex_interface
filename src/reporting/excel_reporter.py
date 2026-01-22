@@ -113,7 +113,39 @@ def generate_excel_report(results: Dict[str, Any], output_filename: str):
                      ids_str = ", ".join(item.get("ids", [])[:100])
                      if len(item.get("ids", [])) > 100: ids_str += "..."
                      ws_extra.append([item.get("exclusive_to_file"), item.get("count"), ids_str])
-
+                     ws_extra.append([item.get("exclusive_to_file"), item.get("count"), ids_str])
+                     
+        # 3. Sheet: Duplicate Keys
+        dup_keys = [d for d in results.get("structured_differences", []) if d['type'] == 'duplicate_keys']
+        if dup_keys:
+            ws_dup = wb.create_sheet("Duplicate Keys")
+            ws_dup.title = "Duplicate Keys" 
+            
+            # Header
+            ws_dup.append(["Status:", "Registros con LLAVE DUPLICADA (Impide comparación correcta)"])
+            ws_dup.append([])
+            
+            # Determine headers
+            headers_set = False
+            for item in dup_keys:
+                rows = item.get("full_rows", [])
+                if not rows: continue
+                
+                if not headers_set:
+                     # Add metadata headers
+                    base_headers = ["SOURCE_FILE", "DUPLICATE_COUNT"]
+                    data_headers = list(rows[0].keys())
+                    ws_dup.append(base_headers + data_headers)
+                    headers_set = True
+                
+                source_file = item.get("file", "Unknown")
+                count = item.get("count", 0)
+                
+                for r in rows:
+                    if headers_set:
+                        # Reconstruct row data in order
+                        row_vals = [source_file, count] + [r.get(h) for h in data_headers]
+                        ws_dup.append(row_vals)
         # 3. Sheet: Content Differences (The fun part)
         content_diffs = [d for d in results.get("structured_differences", []) if d['type'] == 'content_mismatch']
         

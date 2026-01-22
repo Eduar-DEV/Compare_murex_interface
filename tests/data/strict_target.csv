@@ -1,5 +1,0 @@
-id,value,description
-1,80.0,Float format mismatch
-2,100.50,Decimal format mismatch (pandas might hide this)
-3,50,Exact match
-4,99.0,Float format mismatch

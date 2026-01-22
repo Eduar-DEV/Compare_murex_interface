@@ -3,9 +3,5 @@ __pycache__/
 .DS_Store
 .venv/
 results/
-tests/batch_results/
-tests/batch_results_v2/
-tests/batch_results_v3/
-tests/batch_results_v4/
 .python-version
 uv.lock

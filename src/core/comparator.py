@@ -89,6 +89,61 @@ class CSVComparator:
 
         return headers_match
 
+    def validate_key_uniqueness(self) -> bool:
+        """Checks for duplicate keys in the dataframes."""
+        if self.key_columns is None:
+            return True
+            
+        unique = True
+        
+        # Check File 1
+        if self.df1 is not None:
+            dupes1 = self.df1[self.df1.duplicated(subset=self.key_columns, keep=False)]
+            if not dupes1.empty:
+                # Get IDs
+                if len(self.key_columns) == 1:
+                    ids = dupes1[self.key_columns[0]].unique().tolist()
+                else:
+                    ids = dupes1[self.key_columns].drop_duplicates().apply(tuple, axis=1).tolist()
+                
+                # Truncate for error msg
+                ids_preview = str(ids[:5]) + "..." if len(ids) > 5 else str(ids)
+                self.errors.append(f"Duplicate keys found in File 1. Count: {len(dupes1)}. IDs: {ids_preview}")
+                
+                # Store structured info
+                self.structured_differences.append({
+                    "type": "duplicate_keys",
+                    "file": self.file1_path,
+                    "count": len(dupes1),
+                    "ids": [str(x) for x in ids],
+                    "full_rows": dupes1.to_dict('records')
+                })
+                unique = False
+                
+        # Check File 2
+        if self.df2 is not None:
+            dupes2 = self.df2[self.df2.duplicated(subset=self.key_columns, keep=False)]
+            if not dupes2.empty:
+                # Get IDs
+                if len(self.key_columns) == 1:
+                    ids = dupes2[self.key_columns[0]].unique().tolist()
+                else:
+                    ids = dupes2[self.key_columns].apply(tuple, axis=1).tolist()
+                
+                ids_preview = str(ids[:5]) + "..." if len(ids) > 5 else str(ids)
+                self.errors.append(f"Duplicate keys found in File 2. Count: {len(dupes2)}. IDs: {ids_preview}")
+                
+                self.structured_differences.append({
+                    "type": "duplicate_keys",
+                    "file": self.file2_path,
+                    "count": len(dupes2),
+                    "ids": [str(x) for x in ids],
+                    "full_rows": dupes2.to_dict('records')
+                })
+                unique = False
+                
+        return unique
+
     def compare_records(self) -> bool:
         """Compares the records of both files."""
         if self.df1 is None or self.df2 is None:
@@ -322,6 +377,11 @@ class CSVComparator:
              if any("Key column" in err for err in self.errors):
                  is_fatal = True
         
+        # New: Validate Key Uniqueness (Critical for reliable merge)
+        if not is_fatal and self.key_columns:
+            if not self.validate_key_uniqueness():
+                is_fatal = True
+
         records_ok = False
         if not is_fatal:
             records_ok = self.compare_records()

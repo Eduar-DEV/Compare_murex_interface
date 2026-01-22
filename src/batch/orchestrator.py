@@ -51,21 +51,32 @@ class BatchOrchestrator:
         with open(self.log_file, 'a') as f:
             f.write(f"{datetime.datetime.now().strftime('%H:%M:%S')} - {message}\n")
 
-    def _resolve_keys(self, filename: str) -> List[str]:
-        """Resolves the key columns to use for a specific file based on config rules."""
+    def _resolve_file_config(self, filename: str) -> (List[str], List[str]):
+        """
+        Resolves the configuration (keys, ignore_columns) for a specific file.
+        Priority: 1. Rule Pattern -> 2. Config Default -> 3. CLI Args
+        """
+        resolved_keys = self.keys
+        resolved_ignore = self.ignore_columns
+        
         if self.config:
-            # 1. Check rules
+            # 1. Defaults from config (override CLI)
+            if "default_keys" in self.config:
+                resolved_keys = self.config["default_keys"]
+            if "default_ignore_columns" in self.config:
+                resolved_ignore = self.config["default_ignore_columns"]
+
+            # 2. Rules from config (override defaults)
             for rule in self.config.get("rules", []):
                 pattern = rule.get("pattern", "")
                 if pattern and filename.startswith(pattern):
-                    return rule.get("keys", [])
-            
-            # 2. Check config default
-            if "default_keys" in self.config:
-                return self.config["default_keys"]
+                    if "keys" in rule:
+                        resolved_keys = rule["keys"]
+                    if "ignore_columns" in rule:
+                        resolved_ignore = rule["ignore_columns"]
+                    break
         
-        # 3. Fallback to CLI keys
-        return self.keys
+        return resolved_keys, resolved_ignore
 
     def run(self):
         self.log("Scanning directory A...")
@@ -79,10 +90,10 @@ class BatchOrchestrator:
             path_a = os.path.join(self.dir_a, filename)
             path_b = os.path.join(self.dir_b, filename)
             
-            # Resolve keys specifically for this file
-            current_keys = self._resolve_keys(filename)
+            # Resolve config specifically for this file
+            current_keys, current_ignore = self._resolve_file_config(filename)
             
-            self.log(f"[{idx}/{total_files}] Processing {filename} (Keys: {current_keys})...")
+            self.log(f"[{idx}/{total_files}] Processing {filename} (Keys: {current_keys}, Ignore: {current_ignore})...")
             
             result_entry = {
                 "File Name": filename,
@@ -110,7 +121,7 @@ class BatchOrchestrator:
                 
             try:
                 # Initialize Comparator
-                comparator = CSVComparator(path_a, path_b, key_columns=current_keys, ignore_columns=self.ignore_columns)
+                comparator = CSVComparator(path_a, path_b, key_columns=current_keys, ignore_columns=current_ignore)
                 comparison_results = comparator.run_comparison()
                 
                 # Extract Stats
@@ -125,9 +136,30 @@ class BatchOrchestrator:
                 errors = comparison_results.get("errors", [])
                 
                 if errors:
+                    # Generic Error Status
                     result_entry["Status"] = "ERROR"
                     error_msg = "; ".join(errors)
-                    self.log(f"  [ERROR] Comparison failed: {error_msg}")
+                    
+                    # 1. Check for specific "Key Not Found" error
+                    if any("Key column" in err and "not found" in err for err in errors):
+                        result_entry["Status"] = "KEY_NOT_FOUND"
+                        self.log(f"  [KEY ERROR] {error_msg}")
+                    
+                    # 2. Check for Duplicate Keys
+                    elif any("Duplicate keys" in err for err in errors):
+                        result_entry["Status"] = "DUPLICATE_KEYS"
+                        self.log(f"  [DUPLICATE ERROR] {error_msg}")
+                        
+                        # Generate Detail Report for Duplicates
+                        detail_filename = f"report_{filename.replace('.csv', '.xlsx')}"
+                        detail_path = os.path.join(self.details_dir, detail_filename)
+                        generate_excel_report(comparison_results, detail_path)
+                        result_entry["Detail Report"] = detail_filename
+                        self.log(f"  [INFO] Excel report generated: {detail_filename}")
+                        
+                    else:
+                        self.log(f"  [ERROR] Comparison failed: {error_msg}")
+                        
                     result_entry["Notes"] = error_msg
                 elif comparison_results["success"]:
                     result_entry["Status"] = "OK"
