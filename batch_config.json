@@ -1,0 +1,51 @@
+{
+    "default_keys": [
+        "id"
+    ],
+    "default_ignore_columns": [],
+    "rules": [
+        {
+            "pattern": "ignore_test_",
+            "keys": [
+                "id"
+            ],
+            "ignore_columns": [
+                "timestamp",
+                "created_at"
+            ]
+        },
+        {
+            "pattern": "trade_report_",
+            "keys": [
+                "id"
+            ]
+        },
+        {
+            "pattern": "cash_flow_",
+            "keys": [
+                "account_id",
+                "value_date"
+            ]
+        },
+        {
+            "pattern": "special_report_",
+            "keys": [
+                "deal_id"
+            ]
+        },
+        {
+            "pattern": "positions_",
+            "keys": [
+                "instrument_id"
+            ]
+        },
+        {
+            "pattern": "composite_",
+            "keys": [
+                "portfolio",
+                "instrument",
+                "date"
+            ]
+        }
+    ]
+}

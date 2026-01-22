@@ -107,10 +107,94 @@ uv run main.py archivo_base.csv archivo_nuevo.csv --key "TradeID,Version" --igno
 ### 3. Generar Datos de Prueba
 Para verificar el funcionamiento con scripts de prueba incluidos:
 ```bash
-# Generar datos grandes
-uv run generate_large_data.py
-
 # Generar datos específicos para pruebas de llave
 # (Creará tests/data/key_base.csv, key_shuffled.csv, etc.)
 uv run generate_key_data.py
 ```
+
+## Procesamiento Masivo (Batch)
+
+Módulo diseñado para comparar cientos de archivos (ej: Server A vs Server B) de forma automatizada, resiliente y estructurada.
+
+### 1. Arquitectura Batch
+- **Orquestador (`src/batch/orchestrator.py`)**: Script en Python que itera sobre los archivos, gestiona errores (sin detener el proceso) y genera reportes.
+- **Configuración (`batch_config.json`)**: Permite definir **llaves dinámicas** según el nombre del archivo.
+- **Log (`execution.log`)**: Bitácora detallada de cada paso.
+- **Reporte Maestro (`summary_report.xlsx`)**: Excel consolidado con el estado de todos los archivos.
+
+### 2. Ejecución Simplificada
+Use el script `run_batch.sh` para ejecutar el proceso completo. Edite las variables `DIR_A` y `DIR_B` dentro del script para apuntar a sus datos reales.
+
+```bash
+# Dar permisos de ejecución (solo la primera vez)
+chmod +x run_batch.sh
+
+# Ejecutar
+./run_batch.sh
+```
+
+### 3. Configuración Dinámica (`batch_config.json`)
+Este archivo define qué columnas usar como llave primaria (`--key`) automáticamente.
+
+Ejemplo:
+```json
+{
+    "default_keys": ["id"],
+    "default_ignore_columns": ["system_timestamp"],
+    "rules": [
+        {
+            "pattern": "trade_report_",
+            "keys": ["TradeID"] 
+        },
+        {
+            "pattern": "cash_flow_",
+            "keys": ["Account", "Date"],
+            "ignore_columns": ["input_user", "process_time"]
+        }
+    ]
+}
+```
+*   **`ignore_columns`**: Puede definirse globalmente (`default_ignore_columns`) o anularse por regla. Esto permite excluir columnas volátiles (ej: timestamps) de forma granular.
+*   Si el archivo empieza con `trade_report_`, usa `TradeID`.
+*   Si no coincide con ninguna regla, usa `default_keys` (o lo definido en `--key` como fallback).
+
+### 4. Validaciones Avanzadas y Métricas
+
+El sistema incluye protecciones automáticas y análisis bidireccional:
+
+*   **Detección de Duplicados (`DUPLICATE_KEYS`)**:
+    *   Valida la unicidad de las llaves Primarias *antes* de comparar.
+    *   Si encuentra duplicados, **aborta** la comparación de ese archivo (para evitar errores cartesianos) y genera un reporte Excel con la hoja **"Duplicate Keys"**, listando los registros problemáticos.
+
+*   **Auditoría Inversa (`MISSING_IN_A`)**:
+    *   No solo verifica si falta el archivo destino (`MISSING_IN_B`).
+    *   Al final del proceso, detecta archivos "huérfanos" que existen en el Servidor B pero no en el A.
+
+*   **Métricas de Desempeño**:
+    *   Mide el tiempo exacto de procesamiento por archivo.
+    *   Incluye la columna `Duration (s)` en el reporte maestro para detectar cuellos de botella.
+
+### 5. Salida Generada
+Los resultados se guardan en `results/batch_YYYYMMDD_HHMMSS/`:
+
+*   **`summary_report.xlsx`**: Panel de control.
+    *   **Status**:
+        *   `OK`: Archivos idénticos.
+        *   `DIFF`: Diferencias de contenido encontradas.
+        *   `ERROR`: Fallo técnico (ej: archivo corrupto).
+        *   `DUPLICATE_KEYS`: Llaves duplicadas impiden comparación.
+        *   `KEY_NOT_FOUND`: La columna llave configurada no existe en el archivo.
+        *   `MISSING_IN_B`: Archivo existe en origen pero no en destino.
+        *   `MISSING_IN_A`: Archivo existe en destino pero no en origen.
+    *   **Métricas**: Filas, Diferencias, Duración (s).
+    *   **Detail Report**: Nombre del archivo Excel con el detalle (si aplica).
+*   **`execution.log`**: Bitácora técnica con muestras de errores e IDs duplicados.
+*   **`details/`**: Carpeta que contiene reportes Excel (`.xlsx`) detallados para los casos de `DIFF` o `DUPLICATE_KEYS`.
+
+### 5. Generar Datos de Prueba Batch
+Para simular un entorno con 200 archivos (incluyendo casos de borde y llaves especiales):
+
+```bash
+uv run generate_batch_data.py
+```
+Esto creará `tests/batch_data/server_a` y `server_b` listos para probar con `./run_batch.sh`.

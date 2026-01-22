@@ -1,75 +1,92 @@
-import pandas as pd
-import numpy as np
-import random
-from datetime import datetime, timedelta
 import os
+import csv
+import random
+import shutil
 
-def random_date(start, end, fmt):
-    delta = end - start
-    int_delta = (delta.days * 24 * 60 * 60) + delta.seconds
-    random_second = random.randrange(int_delta)
-    return (start + timedelta(seconds=random_second)).strftime(fmt)
+# Configuration
+BASE_DIR = "tests/batch_data"
+DIR_A = os.path.join(BASE_DIR, "server_a")
+DIR_B = os.path.join(BASE_DIR, "server_b")
+NUM_FILES = 20 # 20 Composite files
 
-def generate_data(num_records=1000):
-    ids = list(range(1, num_records + 1))
+def generate_composite_csv(filepath, rows=50, duplicate_keys=False):
+    with open(filepath, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['portfolio', 'instrument', 'date', 'market_value', 'currency'])
+        
+        data = []
+        for i in range(1, rows + 1):
+            row = [
+                f"PF_{random.choice(['A', 'B', 'C'])}",       # Key Part 1
+                f"INST_{random.randint(1, 100):03d}",          # Key Part 2
+                f"2023-01-{random.randint(1, 5):02d}",         # Key Part 3
+                f"{random.uniform(1000, 50000):.2f}",
+                random.choice(['USD', 'EUR', 'GBP'])
+            ]
+            data.append(row)
+            
+        if duplicate_keys:
+            # Duplicate the first row 3 times
+            data.append(data[0]) 
+            data.append(data[0])
+            
+        writer.writerows(data)
+
+def modify_csv(source_path, target_path, mode='identical'):
+    with open(source_path, 'r') as f:
+        rows = list(csv.reader(f))
     
-    data = {
-        'id': ids,
-        'name': [f'User_{i}' for i in ids],
-        'age': np.random.randint(18, 90, num_records),
-        'salary': np.round(np.random.uniform(30000, 150000, num_records), 2),
-        'height_m': np.round(np.random.uniform(1.50, 2.10, num_records), 2),
-        'is_active': np.random.choice([True, False], num_records),
-        'join_date_iso': [random_date(datetime(2000, 1, 1), datetime(2023, 1, 1), '%Y-%m-%d') for _ in range(num_records)],
-        'last_login_fmt2': [random_date(datetime(2023, 1, 1), datetime(2024, 1, 1), '%d/%m/%Y %H:%M') for _ in range(num_records)],
-        'category': np.random.choice(['A', 'B', 'C', 'Special'], num_records),
-        'score_high_precision': np.random.uniform(0, 100, num_records), # No rounding, lots of decimals
-        'zip_code': [f"{random.randint(10000, 99999)}" for _ in range(num_records)],
-        'comment_text': [f"Comment, with, commas for id {i}" for i in ids], # Testing quoting
-        'mixed_numeric': [int(x) if i % 2 == 0 else float(x) for i, x in enumerate(np.random.randint(1, 100, num_records))], # Int/Float mix
-        'currency': ['USD' for _ in range(num_records)],
-        'null_col': [None if i % 10 == 0 else 'Value' for i in range(num_records)] # Some NaNs
-    }
+    header = rows[0]
+    data = rows[1:] # type: list
     
-    return pd.DataFrame(data)
+    if mode == 'diff':
+        if len(data) > 5:
+            # Change Market Value (Col 3)
+            data[2][3] = "999999.99"
+            
+    with open(target_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        writer.writerows(data)
 
 def main():
-    os.makedirs('tests/data', exist_ok=True)
-    print("Generating base dataset...")
-    df = generate_data(1000)
+    # Assume directories exist (created by generate_batch_data.py)
+    os.makedirs(DIR_A, exist_ok=True)
+    os.makedirs(DIR_B, exist_ok=True)
     
-    # Save base
-    df.to_csv('tests/data/complex_1k_base.csv', index=False)
-    print("Saved tests/data/complex_1k_base.csv")
+    print(f"Generating {NUM_FILES} composite key files...")
     
-    # Create a modified version "target"
-    df_mod = df.copy()
-    
-    # 1. Delete some records (e.g., IDs 50-55)
-    df_mod = df_mod[~df_mod['id'].isin(range(50, 56))]
-    
-    # 2. Add some records
-    new_rows = generate_data(10)
-    new_rows['id'] = range(1001, 1011)
-    df_mod = pd.concat([df_mod, new_rows], ignore_index=True)
-    
-    # 3. Modify content
-    # Change salary of ID 1 (float diff)
-    df_mod.loc[df_mod['id'] == 1, 'salary'] = df_mod.loc[df_mod['id'] == 1, 'salary'] + 0.01
-    
-    # Change date format for one record (logical diff? or just string diff)
-    # The comparator compares strings, so this will be a diff.
-    df_mod.loc[df_mod['id'] == 2, 'join_date_iso'] = '2025-01-01'
-    
-    # Change precision of ID 3 score (subtle float)
-    val = df_mod.loc[df_mod['id'] == 3, 'score_high_precision'].values[0]
-    df_mod.loc[df_mod['id'] == 3, 'score_high_precision'] = val + 0.000000001
-    
-    # Shuffle
-    df_mod = df_mod.sample(frac=1).reset_index(drop=True)
-    
-    df_mod.to_csv('tests/data/complex_1k_target.csv', index=False)
-    print("Saved tests/data/complex_1k_target.csv")
+    for i in range(1, NUM_FILES + 1):
+        filename = f"composite_report_{i:03d}.csv"
+        path_a = os.path.join(DIR_A, filename)
+        path_b = os.path.join(DIR_B, filename)
+        
+        # Scenario Logic
+        # 1-5: Identical
+        # 6-10: Diff
+        # 11-15: Missing/Extra
+        # 16: Duplicate Keys (Edge Case)
+        
+        if i <= 5:
+            generate_composite_csv(path_a)
+            shutil.copy(path_a, path_b)
+        elif i <= 10:
+            generate_composite_csv(path_a)
+            modify_csv(path_a, path_b, mode='diff')
+        elif i <= 13:
+            generate_composite_csv(path_a) # Missing in B
+        elif i <= 15:
+            generate_composite_csv(path_b) # Extra in B
+            # Ensure A exists? No, missing in A logic requires it absent.
+        elif i == 16:
+            # Duplicate Keys Case
+            filename = f"composite_dup_{i:03d}.csv"
+            path_a = os.path.join(DIR_A, filename)
+            path_b = os.path.join(DIR_B, filename)
+            generate_composite_csv(path_a, duplicate_keys=True) # Dupes in A
+            generate_composite_csv(path_b, duplicate_keys=False) # Clean in B
+            
+    print("Complex data generation complete.")
 
 if __name__ == "__main__":
     main()

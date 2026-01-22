@@ -1,5 +1,0 @@
-id,value,description
-1,80,Integer format
-2,100.5,Float format
-3,50,Mixed match
-4,99,Just int
