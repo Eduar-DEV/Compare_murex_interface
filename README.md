@@ -112,6 +112,40 @@ Para verificar el funcionamiento con scripts de prueba incluidos:
 uv run generate_key_data.py
 ```
 
+```bash
+uv run generate_key_data.py
+```
+
+## Despliegue en Windows
+
+Para ejecutar esta herramienta en un entorno Windows (Servidor o PC Local):
+
+### 1. Preparar el Paquete
+Copie toda la carpeta del proyecto al entorno Windows.
+> **Importante**: No copie las carpetas `.venv` ni `results` (se generarán allá).
+
+### 2. Prerrequisitos en Windows
+1.  **Instalar Python 3**: [Descargar desde python.org](https://www.python.org/downloads/). Asegúrese de marcar "Add Python to PATH" durante la instalación.
+2.  **Instalar UV**: Abra PowerShell o CMD y ejecute:
+    ```powershell
+    pip install uv
+    ```
+
+### 3. Ejecución
+Hemos incluido un script nativo `run_batch.bat`. Simplemente haga doble clic sobre él o ejecútelo desde la consola:
+
+```cmd
+cd ruta\del\proyecto
+run_batch.bat
+```
+
+El script se encargará automáticamente de:
+1.  Crear el entorno virtual.
+2.  Instalar las librerías necesarias.
+3.  Ejecutar el comparador con la configuración de `batch_config.json`.
+
+---
+
 ## Procesamiento Masivo (Batch)
 
 Módulo diseñado para comparar cientos de archivos (ej: Server A vs Server B) de forma automatizada, resiliente y estructurada.
