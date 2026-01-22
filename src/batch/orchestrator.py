@@ -2,6 +2,7 @@ import json
 import os
 import argparse
 import datetime
+import time
 import pandas as pd
 from typing import List, Dict, Optional, Any
 from src.core.comparator import CSVComparator
@@ -79,33 +80,45 @@ class BatchOrchestrator:
         return resolved_keys, resolved_ignore
 
     def run(self):
-        self.log("Scanning directory A...")
+        self.log("Scanning directories...")
         files_a = [f for f in os.listdir(self.dir_a) if f.lower().endswith('.csv')]
+        files_b = [f for f in os.listdir(self.dir_b) if f.lower().endswith('.csv')]
+        
         files_a.sort()
+        files_b_set = set(files_b)
         
-        total_files = len(files_a)
-        self.log(f"Found {total_files} files in Source A.")
+        total_files_a = len(files_a)
+        self.log(f"Found {total_files_a} files in Source A.")
+        self.log(f"Found {len(files_b)} files in Source B.")
         
+        processed_files = set()
+        
+        # 1. Process files in A (Check Comparison or Missing in B)
         for idx, filename in enumerate(files_a, 1):
+            processed_files.add(filename)
             path_a = os.path.join(self.dir_a, filename)
             path_b = os.path.join(self.dir_b, filename)
             
             # Resolve config specifically for this file
             current_keys, current_ignore = self._resolve_file_config(filename)
             
-            self.log(f"[{idx}/{total_files}] Processing {filename} (Keys: {current_keys}, Ignore: {current_ignore})...")
+            self.log(f"[{idx}/{total_files_a}] Processing {filename} (Keys: {current_keys}, Ignore: {current_ignore})...")
             
             result_entry = {
                 "File Name": filename,
                 "Status": "UNKNOWN",
                 "Keys Used": ", ".join(current_keys),
+                "Possible Keys": ", ".join(current_ignore), # Re-using ignore field in report? No, stick to clean schema
                 "Total Rows A": 0,
                 "Total Rows B": 0,
                 "Diff Count": 0,
                 "Missing Records": 0,
                 "Additional Records": 0,
-                "Detail Report": ""
+                "Detail Report": "",
+                "Duration (s)": 0.00
             }
+            
+            start_time = time.time()
             
             if not current_keys:
                  self.log(f"  [ERROR] No keys defined for this file. Skipping.")
@@ -123,6 +136,10 @@ class BatchOrchestrator:
                 # Initialize Comparator
                 comparator = CSVComparator(path_a, path_b, key_columns=current_keys, ignore_columns=current_ignore)
                 comparison_results = comparator.run_comparison()
+                
+                # Validation Time
+                duration = time.time() - start_time
+                result_entry["Duration (s)"] = round(duration, 4)
                 
                 # Extract Stats
                 summary = comparison_results.get("summary", {})
@@ -163,7 +180,7 @@ class BatchOrchestrator:
                     result_entry["Notes"] = error_msg
                 elif comparison_results["success"]:
                     result_entry["Status"] = "OK"
-                    self.log(f"  [OK] Files match perfectly.")
+                    self.log(f"  [OK] Files match perfectly. ({result_entry['Duration (s)']}s)")
                 else:
                     result_entry["Status"] = "DIFF"
                     self.log(f"  [DIFF] Differences found (M:{result_entry['Missing Records']}, A:{result_entry['Additional Records']}, D:{result_entry['Diff Count']})")
@@ -181,23 +198,49 @@ class BatchOrchestrator:
                 
             self.results_summary.append(result_entry)
             
+        # 2. Check files in B but missing in A
+        self.log("Checking for files missing in Source A...")
+        missing_in_a = [f for f in files_b if f not in processed_files]
+        
+        for filename in missing_in_a:
+            self.log(f"  [MISSING_IN_A] File found in B but not in A: {filename}")
+            result_entry = {
+                "File Name": filename,
+                "Status": "MISSING_IN_A",
+                "Keys Used": "N/A",
+                "Total Rows A": 0,
+                "Total Rows B": 0,
+                "Diff Count": 0,
+                "Missing Records": 0,
+                "Additional Records": 0,
+                "Detail Report": "",
+                "Duration (s)": 0.00,
+                "Notes": "File exists in Target (B) but not in Source (A)"
+            }
+            self.results_summary.append(result_entry)
+            
         self._generate_master_report()
         self.log("\nBatch Execution Completed.")
         self.log(f"Master report saved to: {os.path.join(self.batch_output_dir, 'summary_report.xlsx')}")
 
     def _generate_master_report(self):
         df_summary = pd.DataFrame(self.results_summary)
+        # Ensure Duration is included cleanly if not present somehow
+        if "Duration (s)" not in df_summary.columns:
+            df_summary["Duration (s)"] = 0.0
+            
         output_path = os.path.join(self.batch_output_dir, "summary_report.xlsx")
         
-        # Simple Excel writer
         with pd.ExcelWriter(output_path, engine='openpyxl') as writer:
             df_summary.to_excel(writer, sheet_name='Batch Summary', index=False)
             
-            # Auto-adjust columns (basic)
             ws = writer.sheets['Batch Summary']
             for column_cells in ws.columns:
-                length = max(len(str(cell.value)) for cell in column_cells)
-                ws.column_dimensions[column_cells[0].column_letter].width = length + 2
+                try:
+                    length = max(len(str(cell.value)) for cell in column_cells)
+                    ws.column_dimensions[column_cells[0].column_letter].width = length + 2
+                except:
+                    pass
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Batch CSV Comparator Orchestrator")
