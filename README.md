@@ -174,6 +174,7 @@ Ejemplo:
 ```json
 {
     "default_keys": ["id"],
+    "default_separator": ",",
     "default_ignore_columns": ["system_timestamp"],
     "rules": [
         {
@@ -183,12 +184,15 @@ Ejemplo:
         {
             "pattern": "cash_flow_",
             "keys": ["Account", "Date"],
-            "ignore_columns": ["input_user", "process_time"]
+            "ignore_columns": ["input_user", "process_time"],
+            "separator": ";"
         }
     ]
 }
 ```
-*   **`ignore_columns`**: Puede definirse globalmente (`default_ignore_columns`) o anularse por regla. Esto permite excluir columnas volátiles (ej: timestamps) de forma granular.
+*   **`ignore_columns`**: Puede definirse globalmente (`default_ignore_columns`) o anularse por regla.
+*   **`default_separator`**: Define el separador por defecto para todos los archivos (ej: `,` o `;`). Si no se especifica, el sistema usa **`;`** por defecto.
+*   **`separator` (en reglas)**: Permite anular el separador global para archivos específicos.
 *   Si el archivo empieza con `trade_report_`, usa `TradeID`.
 *   Si no coincide con ninguna regla, usa `default_keys` (o lo definido en `--key` como fallback).
 

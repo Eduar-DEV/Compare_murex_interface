@@ -9,6 +9,7 @@ set "DIR_A=tests\batch_data\server_a"
 set "DIR_B=tests\batch_data\server_b"
 set "OUTPUT_DIR=results"
 set "CONFIG_FILE=batch_config.json"
+set "SEPARATOR="
 
 echo ===================================================
 echo   Murex Batch Comparator (No UV)
@@ -53,7 +54,11 @@ if "%PY_EXE%"=="" (
 )
 
 REM --- Ejecutar como módulo para que funcionen imports "from src..."
-%PY_EXE% -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
+if "%SEPARATOR%"=="" (
+    %PY_EXE% -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
+) else (
+    %PY_EXE% -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%" --separator "%SEPARATOR%"
+)
 
 if %errorlevel% neq 0 (
     echo.

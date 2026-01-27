@@ -2,6 +2,7 @@
     "default_keys": [
         "id"
     ],
+    "default_separator": ";",
     "default_ignore_columns": [],
     "rules": [
         {

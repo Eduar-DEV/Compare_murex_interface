@@ -3,9 +3,10 @@ from typing import Dict, Any, List, Optional
 import os
 
 class CSVComparator:
-    def __init__(self, file1_path: str, file2_path: str, key_columns: Optional[Any] = None, ignore_columns: Optional[List[str]] = None):
+    def __init__(self, file1_path: str, file2_path: str, key_columns: Optional[Any] = None, ignore_columns: Optional[List[str]] = None, separator: str = ';'):
         self.file1_path = file1_path
         self.file2_path = file2_path
+        self.separator = separator
         # Normalize key_columns to list
         if isinstance(key_columns, str):
             self.key_columns = [k.strip() for k in key_columns.split(',')]
@@ -31,8 +32,8 @@ class CSVComparator:
 
         try:
             # Read as string to preserve exact formatting (e.g. 80 vs 80.0)
-            self.df1 = pd.read_csv(self.file1_path, dtype=str)
-            self.df2 = pd.read_csv(self.file2_path, dtype=str)
+            self.df1 = pd.read_csv(self.file1_path, dtype=str, sep=self.separator)
+            self.df2 = pd.read_csv(self.file2_path, dtype=str, sep=self.separator)
             
             # Drop ignored columns
             if self.ignore_columns:

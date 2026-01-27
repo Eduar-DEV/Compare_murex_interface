@@ -9,13 +9,14 @@ from src.core.comparator import CSVComparator
 from src.reporting.excel_reporter import generate_excel_report
 
 class BatchOrchestrator:
-    def __init__(self, dir_a: str, dir_b: str, output_dir: str, keys: List[str] = None, ignore_columns: List[str] = None, config_file: str = None):
+    def __init__(self, dir_a: str, dir_b: str, output_dir: str, keys: List[str] = None, ignore_columns: List[str] = None, config_file: str = None, separator: str = ';'):
         self.dir_a = dir_a
         self.dir_b = dir_b
         self.output_dir = output_dir
         self.keys = keys if keys else []
         self.ignore_columns = ignore_columns if ignore_columns else []
         self.config_file = config_file
+        self.separator = separator
         self.config = self._load_config()
         self.results_summary = []
         
@@ -35,7 +36,8 @@ class BatchOrchestrator:
             f.write(f"Config File: {self.config_file}\n")
             if not self.config_file:
                 f.write(f"Default Keys (CLI): {self.keys}\n")
-            f.write(f"Ignore Cols: {self.ignore_columns}\n\n")
+            f.write(f"Ignore Cols: {self.ignore_columns}\n")
+            f.write(f"Default Separator: '{self.separator}'\n\n")
 
     def _load_config(self) -> Optional[Dict[str, Any]]:
         if self.config_file and os.path.exists(self.config_file):
@@ -52,20 +54,23 @@ class BatchOrchestrator:
         with open(self.log_file, 'a') as f:
             f.write(f"{datetime.datetime.now().strftime('%H:%M:%S')} - {message}\n")
 
-    def _resolve_file_config(self, filename: str) -> (List[str], List[str]):
+    def _resolve_file_config(self, filename: str) -> (List[str], List[str], str):
         """
-        Resolves the configuration (keys, ignore_columns) for a specific file.
-        Priority: 1. Rule Pattern -> 2. Config Default -> 3. CLI Args
+        Resolves the configuration (keys, ignore_columns, separator) for a specific file.
+        Priority: 1. Rule Pattern -> 2. Config Default -> 3. CLI Args -> 4. System Default (init arg)
         """
         resolved_keys = self.keys
         resolved_ignore = self.ignore_columns
+        resolved_sep = self.separator
         
         if self.config:
-            # 1. Defaults from config (override CLI)
+            # 1. Defaults from config (override CLI/System)
             if "default_keys" in self.config:
                 resolved_keys = self.config["default_keys"]
             if "default_ignore_columns" in self.config:
                 resolved_ignore = self.config["default_ignore_columns"]
+            if "default_separator" in self.config:
+                resolved_sep = self.config["default_separator"]
 
             # 2. Rules from config (override defaults)
             for rule in self.config.get("rules", []):
@@ -75,9 +80,11 @@ class BatchOrchestrator:
                         resolved_keys = rule["keys"]
                     if "ignore_columns" in rule:
                         resolved_ignore = rule["ignore_columns"]
+                    if "separator" in rule:
+                        resolved_sep = rule["separator"]
                     break
         
-        return resolved_keys, resolved_ignore
+        return resolved_keys, resolved_ignore, resolved_sep
 
     def run(self):
         self.log("Scanning directories...")
@@ -100,9 +107,9 @@ class BatchOrchestrator:
             path_b = os.path.join(self.dir_b, filename)
             
             # Resolve config specifically for this file
-            current_keys, current_ignore = self._resolve_file_config(filename)
+            current_keys, current_ignore, current_sep = self._resolve_file_config(filename)
             
-            self.log(f"[{idx}/{total_files_a}] Processing {filename} (Keys: {current_keys}, Ignore: {current_ignore})...")
+            self.log(f"[{idx}/{total_files_a}] Processing {filename} (Keys: {current_keys}, Ignore: {current_ignore}, Sep: '{current_sep}')...")
             
             result_entry = {
                 "File Name": filename,
@@ -134,7 +141,7 @@ class BatchOrchestrator:
                 
             try:
                 # Initialize Comparator
-                comparator = CSVComparator(path_a, path_b, key_columns=current_keys, ignore_columns=current_ignore)
+                comparator = CSVComparator(path_a, path_b, key_columns=current_keys, ignore_columns=current_ignore, separator=current_sep)
                 comparison_results = comparator.run_comparison()
                 
                 # Validation Time
@@ -249,6 +256,7 @@ if __name__ == "__main__":
     parser.add_argument("--output", default="results", help="Base output directory")
     parser.add_argument("--key", help="Comma-separated key columns (default fallback)", default=None)
     parser.add_argument("--ignore-columns", help="Column name(s) to ignore during comparison (comma separated)", default=None)
+    parser.add_argument("--separator", help="CSV separator character (default ';')", default=';')
     parser.add_argument("--config", help="Path to JSON configuration file for dynamic keys", default=None)
     
     args = parser.parse_args()
@@ -261,5 +269,5 @@ if __name__ == "__main__":
     if args.ignore_columns:
         ignore_cols = [c.strip() for c in args.ignore_columns.split(',')]
     
-    orchestrator = BatchOrchestrator(args.dir_a, args.dir_b, args.output, keys, ignore_columns=ignore_cols, config_file=args.config)
+    orchestrator = BatchOrchestrator(args.dir_a, args.dir_b, args.output, keys, ignore_columns=ignore_cols, config_file=args.config, separator=args.separator)
     orchestrator.run()

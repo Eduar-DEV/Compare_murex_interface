@@ -9,6 +9,7 @@ set "DIR_A=tests\batch_data\server_a"
 set "DIR_B=tests\batch_data\server_b"
 set "OUTPUT_DIR=results"
 set "CONFIG_FILE=batch_config.json"
+set "SEPARATOR="
 
 REM Check if Python is available
 python --version >nul 2>&1
@@ -40,7 +41,11 @@ echo [INFO] Syncing environment...
 uv sync
 
 echo [INFO] Starting Batch Process...
-uv run -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
+if "%SEPARATOR%"=="" (
+    uv run -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
+) else (
+    uv run -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%" --separator "%SEPARATOR%"
+)
 
 if %errorlevel% neq 0 (
     echo [ERROR] Batch process encountered an issue. Check logs.
