@@ -43,4 +43,24 @@ if [ -n "$IGNORE" ]; then
 fi
 
 # Execute
+
+# -----------------------------------
+# Header Validation
+# -----------------------------------
+echo "Running Header Validation..."
+VALIDATE_CMD="uv run python -m src.batch.validate_headers --dir-a \"$DIR_A\" --dir-b \"$DIR_B\" --output \"$OUTPUT_DIR\""
+
+if [ -n "$SEPARATOR" ]; then
+    VALIDATE_CMD="$VALIDATE_CMD --separator \"$SEPARATOR\""
+fi
+
+if [ -n "$CONFIG" ]; then
+    VALIDATE_CMD="$VALIDATE_CMD --config \"$CONFIG\""
+fi
+
+eval $VALIDATE_CMD
+
+# -----------------------------------
+# Execute Orchestrator
+# -----------------------------------
 eval $CMD

@@ -40,6 +40,14 @@ echo ===================================================
 echo [INFO] Syncing environment...
 uv sync
 
+
+echo [INFO] Validate headers...
+if "%SEPARATOR%"=="" (
+    uv run -m src.batch.validate_headers --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
+) else (
+    uv run -m src.batch.validate_headers --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%" --separator "%SEPARATOR%"
+)
+
 echo [INFO] Starting Batch Process...
 if "%SEPARATOR%"=="" (
     uv run -m src.batch.orchestrator --dir-a "%DIR_A%" --dir-b "%DIR_B%" --output "%OUTPUT_DIR%" --config "%CONFIG_FILE%"
