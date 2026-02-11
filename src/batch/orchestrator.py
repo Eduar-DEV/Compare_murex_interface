@@ -88,8 +88,9 @@ class BatchOrchestrator:
 
     def run(self):
         self.log("Scanning directories...")
-        files_a = [f for f in os.listdir(self.dir_a) if f.lower().endswith('.csv')]
-        files_b = [f for f in os.listdir(self.dir_b) if f.lower().endswith('.csv')]
+        valid_extensions = ('.csv', '.txt', '.xls', '.xlsx')
+        files_a = [f for f in os.listdir(self.dir_a) if f.lower().endswith(valid_extensions)]
+        files_b = [f for f in os.listdir(self.dir_b) if f.lower().endswith(valid_extensions)]
         
         files_a.sort()
         files_b_set = set(files_b)
@@ -175,7 +176,7 @@ class BatchOrchestrator:
                         self.log(f"  [DUPLICATE ERROR] {error_msg}")
                         
                         # Generate Detail Report for Duplicates
-                        detail_filename = f"report_{filename.replace('.csv', '.xlsx')}"
+                        detail_filename = f"report_{os.path.splitext(filename)[0]}.xlsx"
                         detail_path = os.path.join(self.details_dir, detail_filename)
                         generate_excel_report(comparison_results, detail_path)
                         result_entry["Detail Report"] = detail_filename
@@ -193,7 +194,7 @@ class BatchOrchestrator:
                     self.log(f"  [DIFF] Differences found (M:{result_entry['Missing Records']}, A:{result_entry['Additional Records']}, D:{result_entry['Diff Count']})")
                     
                     # Generate Detail Report logic
-                    detail_filename = f"report_{filename.replace('.csv', '.xlsx')}"
+                    detail_filename = f"report_{os.path.splitext(filename)[0]}.xlsx"
                     detail_path = os.path.join(self.details_dir, detail_filename)
                     generate_excel_report(comparison_results, detail_path)
                     result_entry["Detail Report"] = detail_filename

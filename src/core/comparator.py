@@ -22,7 +22,7 @@ class CSVComparator:
         self.structured_differences = []
 
     def load_files(self) -> bool:
-        """Loads the CSV files into pandas DataFrames."""
+        """Loads the files into pandas DataFrames based on extension."""
         if not os.path.exists(self.file1_path):
             self.errors.append(f"File not found: {self.file1_path}")
             return False
@@ -31,9 +31,18 @@ class CSVComparator:
             return False
 
         try:
-            # Read as string to preserve exact formatting (e.g. 80 vs 80.0)
-            self.df1 = pd.read_csv(self.file1_path, dtype=str, sep=self.separator)
-            self.df2 = pd.read_csv(self.file2_path, dtype=str, sep=self.separator)
+            # Helper to load a single file
+            def load_df(path):
+                ext = os.path.splitext(path)[1].lower()
+                if ext in ['.xls', '.xlsx']:
+                    # Read Excel: Default to first sheet, dtype=str
+                    return pd.read_excel(path, dtype=str)
+                else:
+                    # CS/TXT: Read as CSV
+                    return pd.read_csv(path, dtype=str, sep=self.separator)
+
+            self.df1 = load_df(self.file1_path)
+            self.df2 = load_df(self.file2_path)
             
             # Drop ignored columns
             if self.ignore_columns:

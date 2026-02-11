@@ -33,6 +33,10 @@ El proyecto sigue una estructura modular para facilitar la mantenibilidad y esca
 - `save_json_report(results, output_arg)`: Guarda el resultado en `results/` con timestamp (HHMMSS).
 - `print_comparison_results(results)`: Muestra un resumen amigable en la consola y define el código de salida (exit code).
 
+**`src/batch/validate_headers.py`**
+- Script independiente para validar la integridad de las cabeceras en los archivos de entrada.
+- Verifica reglas de configuración y consistencia entre pares de archivos (A vs B).
+
 ---
 
 ## Casos de Uso Implementados
@@ -40,6 +44,7 @@ El proyecto sigue una estructura modular para facilitar la mantenibilidad y esca
 1.  **Validación de Cabeceras**:
     - Detecta si la cantidad de columnas difiere.
     - Detecta si los nombres de las columnas no coinciden (ej: espacio extra `"name "`).
+    - **Soporte de extensiones**: Además de `.csv`, soporta `.txt` (como CSV) y `.xls`/`.xlsx` (Excel, primera hoja).
 
 2.  **Comparación Posicional (Default)**:
     - Compara fila por fila y celda por celda (estricto en orden).
@@ -167,6 +172,14 @@ chmod +x run_batch.sh
 ./run_batch.sh
 ```
 
+### Validación de Cabeceras (Preliminar)
+Antes de la ejecución masiva, es útil validar que la estructura de los archivos sea correcta:
+
+```bash
+uv run src/batch/validate_headers.py --dir-a tests/data/server_a --dir-b tests/data/server_b --config batch_config.json --output results/headers
+```
+Esto genera un **reporte Excel** (`header_validation.xlsx`) indicando si los archivos tienen las columnas esperadas y si coinciden entre sí.
+
 ### 3. Configuración Dinámica (`batch_config.json`)
 Este archivo define qué columnas usar como llave primaria (`--key`) automáticamente.
 
@@ -236,3 +249,56 @@ Para simular un entorno con 200 archivos (incluyendo casos de borde y llaves esp
 uv run generate_batch_data.py
 ```
 Esto creará `tests/batch_data/server_a` y `server_b` listos para probar con `./run_batch.sh`.
+
+Para una prueba más agresiva (100 archivos mezclando CSV, TXT, Excel y casos de error):
+```bash
+uv run tests/generate_large_mixed_data.py
+```
+Esto creará `tests/large_mixed_data/server_a` y `server_b`.
+**Nota**: `run_batch_no_uv.bat` ya está configurado para usar esta ruta por defecto.
+
+---
+
+## Utilidades Adicionales
+
+El proyecto incluye scripts auxiliares para la gestión y limpieza de archivos antes o después de la comparación.
+
+### 1. Inventario de Archivos (`inventario_csv_excel_json.py`)
+Escanea una carpeta (recursivamente) para catalogar archivos CSV, incluso aquellos con sufijos extraños (ej: `archivo.csv_PRO_2025`). Detecta automáticamente delimitadores, encodings y cabeceras.
+
+**Salida**:
+- **Excel**: Lista detallada con tamaño, fecha, cabeceras, estado (OK/ERROR).
+- **JSON**: Lista de patrones de nombre y las llaves (columnas) consolidadas encontradas.
+
+```bash
+uv run inventario_csv_excel_json.py "ruta/a/archivos" --output "mi_inventario.xlsx" --csv-mode smart
+```
+
+### 2. Limpieza de Nombres (`limpiar_sufijo_csv.py`)
+Renombra masivamente archivos que tienen texto basura después de la extensión `.csv`.
+Ejemplo: `DATA_2025.csv_OLD_VERSION` -> `DATA_2025.csv`.
+
+```bash
+# Ejecutar en modo prueba (Dry Run) para ver qué pasaría
+uv run limpiar_sufijo_csv.py "ruta/a/limpiar" --recursive --dry-run
+
+# Ejecutar cambios reales
+uv run limpiar_sufijo_csv.py "ruta/a/limpiar" --recursive
+```
+*Maneja colisiones agregando `(1)`, `(2)` automáticamente.*
+
+### 3. Movimiento Avanzado de Archivos (`mover_archivos_v3.py`)
+Herramienta robusta para mover o copiar archivos entre directorios, con reintentos y reporte CSV.
+
+**Características**:
+- Modos: `move`, `copy`, `copy_then_delete` (verifica integridad antes de borrar).
+- Filtros por extensión.
+- Puede mantener la estructura de carpetas (`--keep-structure`).
+
+```bash
+# Mover solo archivos .csv y .json manteniendo la estructura de carpetas
+uv run mover_archivos_v3.py "origen/" "destino/" --mode move --extensions .csv .json --keep-structure
+
+# Copia segura con verificación
+uv run mover_archivos_v3.py "origen/" "destino/" --mode copy_then_delete
+```
