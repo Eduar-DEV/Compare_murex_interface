@@ -21,20 +21,8 @@ class CSVComparator:
         self.differences = []
         self.structured_differences = []
 
-    def _read_csv_robust(self, filepath: str) -> pd.DataFrame:
-        """Reads CSV with fallback encodings to avoid UnicodeDecodeError."""
-        encodings = ['utf-8', 'latin1', 'iso-8859-1', 'cp1252']
-        for enc in encodings:
-            try:
-                # Read as string to preserve exact formatting
-                return pd.read_csv(filepath, dtype=str, sep=self.separator, encoding=enc)
-            except UnicodeDecodeError:
-                continue
-        # If all fail, try utf-8 with replacement (matches pandas default behavior sort of, but safe)
-        return pd.read_csv(filepath, dtype=str, sep=self.separator, encoding='utf-8', errors='replace')
-
     def load_files(self) -> bool:
-        """Loads the CSV files into pandas DataFrames."""
+        """Loads the files into pandas DataFrames based on extension."""
         if not os.path.exists(self.file1_path):
             self.errors.append(f"File not found: {self.file1_path}")
             return False
@@ -43,8 +31,18 @@ class CSVComparator:
             return False
 
         try:
-            self.df1 = self._read_csv_robust(self.file1_path)
-            self.df2 = self._read_csv_robust(self.file2_path)
+            # Helper to load a single file
+            def load_df(path):
+                ext = os.path.splitext(path)[1].lower()
+                if ext in ['.xls', '.xlsx']:
+                    # Read Excel: Default to first sheet, dtype=str
+                    return pd.read_excel(path, dtype=str)
+                else:
+                    # CS/TXT: Read as CSV
+                    return pd.read_csv(path, dtype=str, sep=self.separator)
+
+            self.df1 = load_df(self.file1_path)
+            self.df2 = load_df(self.file2_path)
             
             # Drop ignored columns
             if self.ignore_columns:
